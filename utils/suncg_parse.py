@@ -17,6 +17,8 @@ from . import bbox_utils
 import pdb
 from collections import defaultdict
 
+curr_path = osp.dirname(osp.abspath(__file__))
+symmetry_file = osp.join('../cachedir/symmetry_suncg.pkl')
 valid_object_classes = [
     'bed', 'sofa', 'table', 'chair', 'desk', 'television',
     # 'cabinet', 'counter', 'refridgerator', 'night_stand', 'toilet', 'bookshelf', 'shelves', 'bathtub'
@@ -46,6 +48,18 @@ object_class2index = {'bed' : 1, 'sofa' :2, 'table' :3,
 #     # 'cabinet', 'counter', 'refridgerator', 'night_stand', 'toilet', 'bookshelf', 'shelves', 'bathtub'
 # ]
 list.sort(valid_object_classes)
+
+
+
+def define_spatial_image(img_height, img_width, spatial_scale):
+        img_height = int(img_height * spatial_scale)
+        img_width = int(img_width * spatial_scale)
+        spatial_h = torch.arange(0, img_height).unsqueeze(1).expand(torch.Size([img_height, img_width]))
+        spatial_w = torch.arange(0, img_width).unsqueeze(0).expand(torch.Size([img_height, img_width]))
+        spatial_h /= img_height
+        spatial_w /= img_width
+        spatial_image = torch.stack([spatial_h, spatial_w])
+        return spatial_image
 
 
 def euler_to_rotation_matrix(theta, phi, psi):
@@ -200,7 +214,7 @@ def intersects(obj_box, grid_box, transform):
 
 # --------- House Parsing ----------#
 # ----------------------------------#
-def select_ids(house_data, bbox_data, trajectories, min_sum_dims=0, min_pixels=0, meta_loader=None):
+def select_ids(house_data, bbox_data, min_sum_dims=0, min_pixels=0, meta_loader=None):
     '''
     Selects objects which are indexed by bbox_data["node_ids"].
 
@@ -265,46 +279,7 @@ def select_ids(house_data, bbox_data, trajectories, min_sum_dims=0, min_pixels=0
     paths = [[[] for i in range(len(select_node_ids))] for j in range(len(select_node_ids))]
     object_locations = np.zeros((len(select_node_ids), 3))
 
-    node_centers = []
-    # nodeId2TrajectoryId = {value:key for key, value in ind2node_id.items()}
-
-    if trajectories is not None:
-        ind2node_id = trajectories['nodes']
-        nodeId2TrajectoryId = {}
-
-        for key, value in ind2node_id.items():
-            if value in select_node_ids:
-                nodeId2TrajectoryId[value] = key
-
-        # select_node_ids2select_inds = {(node_id, index) for (index, node_id) in zip(selected_inds, select_node_ids)}
-
-        real_object_locations = trajectories['real_object_locations']
-        real_paths = trajectories['real_paths']
-        for i, id_i in enumerate(select_node_ids):
-
-            if id_i not in nodeId2TrajectoryId.keys():
-                continue
-            # node_centers.append()
-            trIdi = nodeId2TrajectoryId[id_i]
-            object_locations[i] = np.array(real_object_locations[trIdi])
-
-            for j, id_j in enumerate(select_node_ids):
-                if id_j not in nodeId2TrajectoryId.keys():
-                    continue
-
-                trIdj = nodeId2TrajectoryId[id_j]
-                possible_key1 = "{}_{}".format(trIdi, trIdj)
-                if possible_key1 in real_paths.keys():
-                    paths[i][j] = real_paths[possible_key1]
-                    paths[j][i] = real_paths[possible_key1][:]
-                    paths[j][i].reverse()
-
-        # pdb.set_trace()
-        # if len(object_locations) > 0:
-        #     object_locations = np.stack(object_locations, axis=0)
-
-    trajectory_data = {'paths': paths, 'object_locations': object_locations}
-    return house_copy, objects_bboxes, trajectory_data
+    return house_copy, objects_bboxes
 
 
 def select_layout(house_data):
@@ -414,76 +389,6 @@ def transform_to_image_coordinates(points, intrinsic_matrix):
     return image_coordinates[:,0:2].copy()
 
 
-def codify_path_data(world2cam, trajectory_data, object_codes, relative_trj):
-    ## sample a set of points?  10 points. If there are less points use a mask.
-    ## Create a mask on what points to consider?. Maybe the first and last points should be object locations?
-    ## make these paths relative
-    '''
-    :param trajectory_data: a 2D list containing paths between objects.
-    :return: A list of paths between two points? But this will be per image. NxNxKx3 tensor.
-    '''
-
-    K = 10  ## number_samples_per_path
-    # pdb.set_trace()
-
-    paths = trajectory_data['paths']
-    n_objects = len(paths)
-    paths_array = np.zeros((n_objects, n_objects, K, 3))
-    masks = np.zeros(paths_array.shape)
-    # print(masks.shape)
-    # print(paths_array.shape)
-    # print(len(paths))
-    # transformed_object_locations = transform_coordinates(world2cam, object_locations)
-    offsets = []
-    assert len(trajectory_data['object_locations']) == n_objects, 'mis-match between trajectory and bboxes'
-    object_locations = None
-    if n_objects > 0:
-        object_locations = transform_coordinates(world2cam, trajectory_data['object_locations'])
-
-    pair_wise_distances = [[[] for _ in range(n_objects)] for __ in range(n_objects)]
-
-    # pdb.set_trace()
-    # world2cam = np.eye(world2cam.shape[0])
-
-    for ix in range(n_objects):
-        for jx in range(n_objects):
-            pair_wise_distances[ix][jx] = np.linalg.norm(object_locations[ix] - object_locations[jx])
-
-    offsets = []
-    for ix, paths_i in enumerate(paths):
-        object_i_trans = object_locations[ix] if relative_trj else 0 * object_locations[ix]
-        # object_i_trans = 0*object_codes[ix][4]
-        offsets.append(object_i_trans)
-        for jx, path in enumerate(paths_i):
-            if len(path) == 0:
-                continue  ## Mask is zero fine!
-            if len(path) < K:
-                k = len(path)
-                # transform the path using world2cam? ## So the paths are in the camera frame,
-                #  but relative to the object location?
-                sampled_path = np.stack(path)
-                transformed_path = transform_coordinates(world2cam, sampled_path)
-                # transformed_path = sampled_path
-                paths_array[ix, jx, 0:k, :] = transformed_path - 1 * object_i_trans.reshape(1, -1)
-                masks[ix, jx, 0:k, :] = 1
-            else:
-                # Now we have to sample 10 points
-                skip_size = np.floor(len(path) / K).astype(np.int)
-                sample_locations = np.array([l * skip_size for l in range(K)])
-                sampled_path = np.stack(path)
-                sampled_path = sampled_path[sample_locations]
-
-                transformed_path = transform_coordinates(world2cam, sampled_path)
-                # transformed_path = sampled_path
-                paths_array[ix, jx, :, :] = transformed_path - 1 * object_i_trans.reshape(1, -1)
-                masks[ix, jx, :, :] = 1
-
-    object_paths = {'trajectories': paths_array.astype(np.float32),
-                    'trajectory_masks': masks.astype(np.float32),
-                    'trajectory_offsets': np.array(offsets, dtype=np.float32),
-                    'pwd': np.array(pair_wise_distances, dtype=np.float32)}
-
-    return object_paths
 
 
 # def invertTransformation(transform):
@@ -771,7 +676,8 @@ class ObjectLoader:
         return copy.copy(self._curr_obj_data[field])
 
     def preload(self):
-        with open('symmetry2.pkl') as f:
+        # with open('symmetry2.pkl') as f:
+        with open(symmetry_file) as f:
             preloaded_syms = pickle.load(f)
         for ox in range(len(self._object_names)):
             obj_id = self._object_names[ox]

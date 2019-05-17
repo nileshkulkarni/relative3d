@@ -22,13 +22,14 @@ from torch.utils.data.dataloader import default_collate
 import pdb
 from datetime import datetime
 import sys
+from ..utils import nyu_parse
 from ..utils import suncg_parse
 
 from ..renderer import utils as render_utils
 
 #-------------- flags -------------#
 #----------------------------------#
-flags.DEFINE_string('suncg_dir', '/data0/shubhtuls/datasets/suncg_pbrs_release', 'Suncg Data Directory')
+flags.DEFINE_string('nyu_dir', '/data0/shubhtuls/datasets/suncg_pbrs_release', 'Suncg Data Directory')
 flags.DEFINE_boolean('filter_objects', True, 'Restrict object classes to main semantic classes.')
 flags.DEFINE_integer('max_views_per_house', 0, '0->use all views. Else we randomly select upto the specified number.')
 
@@ -48,6 +49,8 @@ flags.DEFINE_integer('img_width', 256, 'image width')
 
 flags.DEFINE_integer('img_height_fine', 480, 'image height')
 flags.DEFINE_integer('img_width_fine', 640, 'image width')
+flags.DEFINE_integer('nyu_img_height_fine', 480, 'image height')
+flags.DEFINE_integer('nyu_img_width_fine', 640, 'image width')
 
 flags.DEFINE_integer('layout_height', 64, 'amodal depth height : should be half image height')
 flags.DEFINE_integer('layout_width', 128, 'amodal depth width : should be half image width')
@@ -64,11 +67,11 @@ flags.DEFINE_boolean('relative_trj', True, 'use relative trjs')
 
 #------------- Dataset ------------#
 #----------------------------------#
-class SuncgDataset(Dataset):
+class NYUDataset(Dataset):
     '''SUNCG data loader'''
-    def __init__(self, house_names, opts):
-        self._suncg_dir = opts.suncg_dir
-        self._house_names = house_names
+    def __init__(self, image_names, opts):
+        self._nyu_dir = opts.nyu_dir
+        self._image_names = image_names
         self.img_size = (opts.img_height, opts.img_width)
         self.output_fine_img = opts.suncg_dl_out_fine_img
         if self.output_fine_img:
@@ -86,66 +89,40 @@ class SuncgDataset(Dataset):
         self.only_pos_proposals = opts.suncg_dl_out_only_pos_proposals
         self.Adict = {}
         self.lmbda = 1
-        if self.output_layout or self.output_modal_depth:
-            self.layout_size = (opts.layout_height, opts.layout_width)
-        if self.output_voxels:
-            self.voxels_size = (opts.voxels_width, opts.voxels_height, opts.voxels_depth)
-
+        self.opts  = opts
+        
         if self.output_proposals:
             self.max_proposals = opts.suncg_dl_max_proposals
         if self.output_codes:
             self.max_rois = opts.max_rois
-            self._obj_loader = suncg_parse.ObjectLoader(osp.join(opts.suncg_dir, 'object'))
+            
+            self._obj_loader = nyu_parse.ObjectLoader(osp.join(opts.nyu_dir, 'object_obj'))
             if not opts.suncg_dl_debug_mode:
                 self._obj_loader.preload()
             if opts.filter_objects:
-                self._meta_loader = suncg_parse.MetaLoader(osp.join(opts.suncg_dir, 'ModelCategoryMappingEdited.csv'))
+                self._meta_loader = nyu_parse.MetaLoader()
             else:
                 self._meta_loader = None
 
         data_tuples = []
-        for hx, house in enumerate(house_names):
-            if (hx % 1000) == 0:
-                print('Reading image names from house {}/{}'.format(hx, len(house_names)))
-            imgs_dir = osp.join(opts.suncg_dir, 'renderings_ldr', house)
-            view_ids = [f[0:6] for f in os.listdir(imgs_dir)]
-            np.random.seed(0)
-            view_ids.sort()
-            rng = np.random.RandomState([ord(c) for c in house])
-            rng.shuffle(view_ids)
-            # if house == 'ffdbe78368fcf4488e9f930efb82f0e0':
-            #     pdb.set_trace()
+        for ix, image in enumerate(image_names):
+            if (ix % 500) == 0:
+                print('Reading image names {}/{}'.format(ix, len(image_names)))
+            data_tuples.append(image.replace(".png",""))
 
-            if (opts.max_views_per_house > 0) and (opts.max_views_per_house < len(view_ids)):
-                view_ids = view_ids[0:opts.max_views_per_house]
-            for view_id in view_ids:
-                data_tuples.append((house, view_id))
-        self.n_imgs = len(data_tuples)
         self._data_tuples = data_tuples
-        self._preload_cameras(house_names)
-        print('Using object classes {}'.format(suncg_parse.valid_object_classes))
+        self.n_imgs = len(data_tuples)
+
+        print('Using object classes {}'.format(nyu_parse.valid_object_classes))
 
 
 
     def forward_img(self, index):
-        house, view_id = self._data_tuples[index]
-        try:
-            img = scipy.misc.imread(osp.join(self._suncg_dir, 'renderings_ldr', house, view_id + '_mlt.jpg'))
-        except:
-            img = scipy.misc.imread(osp.join(self._suncg_dir, 'renderings_ldr', house, view_id + '_mlt.png'))
-        if len(img.shape) == 2:
-          ## Image is corrupted and it does not have third channel.
-          ### Repeat the sample image 3 times.
-          house, view_id = self._data_tuples[index]
-          print("Corrupted Image Type 1 {} , {}".format(house, view_id))
-          img = np.repeat(np.expand_dims(img,2),3, axis=2)
-
-        if img.shape[2] == 2:
-          house, view_id = self._data_tuples[index]
-          print("Corrupted Image Type 2 {} , {}".format(house, view_id))
-          img = np.concatenate((img, img[:, :, 0:1]), axis=2)
-
-
+        image_name = self._data_tuples[index]
+        img = scipy.misc.imread(osp.join(self._nyu_dir, 'images', image_name + ".png"))
+        img_size = img.shape
+        # pdb.set_trace()
+        bbox_rescaling = np.array(self.img_size_fine)/np.array([img_size[0], img_size[1]], dtype=np.float32)
         if self.output_fine_img:
             img_fine = scipy.misc.imresize(img, self.img_size_fine)
             img_fine = np.transpose(img_fine, (2,0,1))
@@ -153,138 +130,104 @@ class SuncgDataset(Dataset):
         img = scipy.misc.imresize(img, self.img_size)
         img = np.transpose(img, (2,0,1))
         if self.output_fine_img:
-            return img/255, img_fine/255, house, view_id
+            return img/255, img_fine/255, image_name, bbox_rescaling
         else:
-            return img/255, house, view_id
+            return img/255, image_name, img_size, bbox_rescaling
 
-    def _preload_cameras(self, house_names):
-        self._house_cameras = {}
-        for hx, house in enumerate(house_names):
-            if (hx % 200) == 0:
-                print('Pre-loading cameras from house {}/{}'.format(hx, len(house_names)))
-            cam_file = osp.join(self._suncg_dir, 'camera', house, 'room_camera.txt')
-            camera_poses = suncg_parse.read_camera_pose(cam_file)
-            self._house_cameras[house] = camera_poses
+    def forward_codes(self, image_name):
+        opts = self.opts
+        data_file = osp.join(self._nyu_dir, 'img_data', image_name + '.pkl')
+        if osp.exists(data_file):
+            with open(osp.join(self._nyu_dir, 'img_data', image_name + '.pkl'), 'rb') as f:
+                image_data = pkl.load(f)
+            object_data  = nyu_parse.select_ids(image_data['objects'], metaloader=self._meta_loader, min_pixels=500)
+            objects_codes, objects_bboxes = nyu_parse.codify_room_data(object_data, self._obj_loader)
+            if len(objects_bboxes) > 0:
+                objects_bboxes -= 1 #0 indexing to 1 indexing
+                if len(objects_codes) > self.max_rois:
+                    select_inds = np.random.permutation(len(objects_codes))[0:self.max_rois]
+                    objects_bboxes = objects_bboxes[select_inds, :].copy()
+                    objects_codes = [objects_codes[ix] for ix in select_inds]
+            return objects_codes, objects_bboxes
+        else:
+            return [], []
 
-
-    def forward_codes(self, house_name, view_id):
-        campose = self._house_cameras[house_name][int(view_id)]
-        cam2world = suncg_parse.campose_to_extrinsic(campose).astype(np.float32)
-        world2cam = scipy.linalg.inv(cam2world).astype(np.float32)
-
-        house_data = suncg_parse.load_json(
-            osp.join(self._suncg_dir, 'house', house_name, 'house.json'))
-        bbox_data = sio.loadmat(
-            osp.join(self._suncg_dir, 'bboxes_node', house_name, view_id + '_bboxes.mat'))
-
-        objects_data, objects_bboxes = suncg_parse.select_ids(
-            house_data, bbox_data, meta_loader=self._meta_loader, min_pixels=500)
-        
-        objects_codes, _ = suncg_parse.codify_room_data(
-            objects_data, world2cam, self._obj_loader,
-            max_object_classes = self.max_object_classes)
-
-
-        objects_bboxes -= 1 #0 indexing to 1 indexing
-        if len(objects_codes) > self.max_rois:
-            select_inds = np.random.permutation(len(objects_codes))[0:self.max_rois]
-            objects_bboxes = objects_bboxes[select_inds, :].copy()
-            objects_codes = [objects_codes[ix] for ix in select_inds]
-            
-        # return objects_codes, objects_bboxes, extra_codes
-        return objects_codes, objects_bboxes
-
-    def forward_proposals(self, house_name, view_id, codes_gt, bboxes_gt):
+    def forward_proposals(self, image_name, codes_gt, bboxes_gt, bbox_rescaling):
         proposals_data = sio.loadmat(
-            osp.join(self._suncg_dir, 'edgebox_proposals', house_name, view_id + '_proposals.mat'))
-        bboxes_proposals = proposals_data['proposals'][:,0:4]
+            osp.join(self._nyu_dir, 'fast_rcnn_proposals',  image_name + '_propsals.mat'))
+        bboxes_proposals = proposals_data['boxes'][:,0:4]
+        bboxes_scores = proposals_data['score']
         bboxes_proposals -= 1 #zero indexed
+        bboxes_proposals = self.rescale_bboxes(bboxes_proposals, bbox_rescaling)
         codes, bboxes, labels = suncg_parse.extract_proposal_codes(
             codes_gt, bboxes_gt, bboxes_proposals, self.max_proposals,
             only_pos_proposals = self.only_pos_proposals)
         return codes, bboxes, labels
-    
-    def forward_test_proposals(self, house_name, view_id):
+
+    def forward_test_proposals(self, image_name, bbox_rescaling):
         proposals_data = sio.loadmat(
-            osp.join(self._suncg_dir, 'edgebox_proposals', house_name, view_id + '_proposals.mat'))
-        bboxes_proposals = proposals_data['proposals'][:,0:4]
+            osp.join(self._nyu_dir, 'fast_rcnn_proposals',  image_name + '_propsals.mat'))
+        bboxes_proposals = proposals_data['boxes'][:,0:4]
+        bboxes_scores = proposals_data['score']
         bboxes_proposals -= 1 #zero indexed
-        return bboxes_proposals
+        bboxes_proposals = self.rescale_bboxes(bboxes_proposals, bbox_rescaling)
+        return bboxes_proposals, bboxes_scores
 
-
-    def forward_layout(self, house_name, view_id, bg_depth=1e4):
-        depth_im = scipy.misc.imread(osp.join(
-            self._suncg_dir, 'renderings_layout', house_name, view_id + '_depth.png'))
-        depth_im =  depth_im.astype(np.float)/1000.0  # depth was saved in mm
-        depth_im += bg_depth*np.equal(depth_im,0).astype(np.float)
-        disp_im = 1./depth_im
-        amodal_depth = scipy.ndimage.interpolation.zoom(
-            disp_im, (self.layout_size[0]/disp_im.shape[0], self.layout_size[1]/disp_im.shape[1]), order=0)
-        amodal_depth = np.reshape(amodal_depth, (1, self.layout_size[0], self.layout_size[1]))
-        return amodal_depth
-
-    def forward_max_depth(self, house_name, view_id, bg_depth=1e4):
-        depth_im = scipy.misc.imread(osp.join(
-            self._suncg_dir, 'renderings_layout', house_name,
-            view_id + '_depth.png'))
-        depth_im = depth_im.astype(np.float) / 1000.0  # depth was saved in mm
-        max_depth = np.max(depth_im)
-        if max_depth < 1E-3:
-            max_depth = np.max(depth_im) + 1000
-        return max_depth
-    
-    def forward_voxels(self, house_name, view_id):
-        scene_voxels = sio.loadmat(osp.join(
-            self._suncg_dir, 'scene_voxels', house_name, view_id + '_voxels.mat'))
-        scene_voxels = render_utils.downsample(
-            scene_voxels['sceneVox'].astype(np.float32),
-            64//self.voxels_size[1], use_max=True)
-        return scene_voxels
-
+    def rescale_bboxes(self, bboxes, scaling):
+        bboxes[:,0] = bboxes[:,0] * scaling[0]
+        bboxes[:,2] = bboxes[:,2] * scaling[0]
+        bboxes[:,1] = bboxes[:,1] * scaling[1]
+        bboxes[:,3] = bboxes[:,3] * scaling[1]
+        return bboxes
 
     def __len__(self):
         return self.n_imgs
 
     def __getitem__(self, index):
-
+        # pdb.set_trace()
+        # image_name = 'img_6416'
+        # for ix, (inx) in enumerate(self._data_tuples):
+        #     if inx ==image_name:
+        #         index = ix
+        #         print('Using a fixed house')
+        #         break
+       
         if self.output_fine_img:
-            img, img_fine, house_name, view_id = self.forward_img(index)
+            img, img_fine, image_name, bbox_rescaling = self.forward_img(index)
         else:
-            img, house_name, view_id = self.forward_img(index)
+            img, image_name, bbox_rescaling = self.forward_img(index)
+
+
+        # bbox_rescaling -- y, x
+        bbox_rescaling[0], bbox_rescaling[1] = bbox_rescaling[1], bbox_rescaling[0] 
 
         # print('Starting {} {}_{}, {}'.format(str(datetime.now()), house_name, view_id, multiprocessing.current_process()))
         # sys.stdout.flush()
-        # print('{}_{}'.format(house_name, view_id))
         elem = {
             'img': img,
-            'house_name': house_name,
-            'view_id': view_id,
+            'image_name': image_name,
         }
 
-        if self.output_layout:
-            layout = self.forward_layout(house_name, view_id)
-            elem['layout'] = layout
-
-        if self.output_voxels:
-            voxels = self.forward_voxels(house_name, view_id)
-            elem['voxels'] = voxels
 
         if self.output_codes:
             valid = True
-            codes_gt, bboxes_gt = self.forward_codes(house_name, view_id)
+            codes_gt, bboxes_gt = self.forward_codes(image_name)
+            # pdb.set_trace()
+            if len(bboxes_gt) > 0:
+                bboxes_gt[:,0] = bboxes_gt[:,0] * bbox_rescaling[0]
+                bboxes_gt[:,2] = bboxes_gt[:,2] * bbox_rescaling[0]
+                bboxes_gt[:,1] = bboxes_gt[:,1] * bbox_rescaling[1]
+                bboxes_gt[:,3] = bboxes_gt[:,3] * bbox_rescaling[1]
             elem['codes'] = codes_gt
             elem['bboxes'] = bboxes_gt
-            
-            # valid = len(elem['bboxes']) > 0
             if len(elem['bboxes']) == 0: # Ensures that every images has some-information to be help in the loss.
                 elem['bboxes'] = []
                 valid = False
 
-
         if self.output_proposals:
             valid = True
             codes_proposals, bboxes_proposals, labels_proposals = self.forward_proposals(
-                house_name, view_id, codes_gt, bboxes_gt)
+               image_name, codes_gt, bboxes_gt, bbox_rescaling)
             if labels_proposals.size == 0:
                 # print('No proposal found: ', house_name, view_id, labels_proposals, bboxes_proposals)
                 bboxes_proposals = []
@@ -295,15 +238,24 @@ class SuncgDataset(Dataset):
             elem['labels_proposals'] = labels_proposals
             
 
+            # elem['codes_proposals'] = codes_gt
+            # elem['bboxes_proposals'] = bboxes_gt
+            # elem['labels_proposals'] = np.zeros((len(bboxes_gt),)) + 1
+            # if len(elem['bboxes_proposals']) == 0: # Ensures that every images has some-information to be help in the loss.
+            #     elem['bboxes_proposals'] = []
+            #     elem['labels_proposals'] = []
+            #     valid = False
+
         if self.output_test_proposals:
-            bboxes_proposals = self.forward_test_proposals(house_name, view_id)
+            bboxes_proposals, scores = self.forward_test_proposals(image_name, bbox_rescaling)
             if bboxes_proposals.size == 0:
-                print('No proposal found: ', house_name, view_id)
+                print('No proposal found: ', image_name)
                 bboxes_proposals = []
                 valid = False
 
             elem['bboxes_test_proposals'] = bboxes_proposals
-
+            elem['scores'] = np.array(scores.reshape(-1), copy=True)
+            
         if self.output_fine_img:
             elem['img_fine'] = img_fine
         return (valid, elem)
@@ -333,7 +285,7 @@ def recursive_convert_to_torch(elem):
         return elem
 
 def collate_fn(batch):
-    '''SUNCG data collater.
+    '''NYU data collater.
     
     Assumes each instance is a dict.
     Applies different collation rules for each field.
@@ -356,7 +308,8 @@ def collate_fn(batch):
     if len(batch) > 0:
         for key in batch[0]:
             if key =='codes' or key=='bboxes' or key=='codes_proposals' or key=='bboxes_proposals'\
-                    or key=='bboxes_test_proposals':
+                    or key=='bboxes_test_proposals' or key=='trajectory_masks' or key=='trajectories'\
+                    or key=='extra_codes' or key == 'trajectory_offsets' or key=='pwd':
                 collated_batch[key] = [recursive_convert_to_torch(elem[key]) for elem in batch]
                 # pdb.set_trace()
             elif key == 'labels_proposals':
@@ -368,16 +321,16 @@ def collate_fn(batch):
 
 #----------- Data Loader ----------#
 #----------------------------------#
-def suncg_data_loader(house_names, opts):
-    dset = SuncgDataset(house_names, opts)
+def nyu_data_loader(image_names, opts):
+    dset = NYUDataset(image_names, opts)
     return DataLoader(
         dset, batch_size=opts.batch_size,
         shuffle=True, num_workers=opts.n_data_workers,
         collate_fn=collate_fn, pin_memory=True)
 
 
-def suncg_data_loader_benchmark(house_names, opts):
-    dset = SuncgDataset(house_names, opts)
+def nyu_data_loader_benchmark(image_names, opts):
+    dset = NYUDataset(image_names, opts)
     return DataLoader(
         dset, batch_size=opts.batch_size,
         shuffle=False, num_workers=opts.n_data_workers,

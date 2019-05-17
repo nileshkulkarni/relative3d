@@ -135,10 +135,10 @@ def main(_):
                             if img_dir not in vis_dir_names_from_file:
                                 continue
                             if 'json' in img_name:
-                                # json_path = osp.join(opts.imgs_root_dirA, img_dir, img_name)
-                                # draw_json_table(json_path, doc_tags)
-                                # json_path = osp.join(opts.imgs_root_dirB, img_dir, img_name)
-                                # draw_json_table(json_path, doc_tags)
+                                json_path = osp.join(opts.imgs_root_dirA, img_dir, img_name)
+                                draw_json_table(json_path, doc_tags)
+                                json_path = osp.join(opts.imgs_root_dirB, img_dir, img_name)
+                                draw_json_table(json_path, doc_tags)
                                 continue
                             with tag('td'):
                                 with tag('img', width="640px", src=osp.join(img_root_rel_pathA, img_dir, img_name)):

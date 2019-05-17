@@ -43,7 +43,7 @@ from collections import Counter
 from six.moves import cPickle as pickle
 import collections
 
-q2e = quatUtils.convert_quat_to_euler
+# q2e = quatUtils.convert_quat_to_euler
 
 curr_path = osp.dirname(osp.abspath(__file__))
 cache_path = osp.join(curr_path, '..', '..', 'cachedir')
@@ -62,13 +62,10 @@ flags.DEFINE_integer('shape_pretrain_epoch', 800, 'Experiment name for shape dec
 
 flags.DEFINE_integer('max_rois', 100, 'If we have more objects than this per image, we will subsample.')
 flags.DEFINE_integer('max_total_rois', 100, 'If we have more objects than this per batch, we will reject the batch.')
-flags.DEFINE_integer('num_visuals', 200, 'Number of renderings')
 flags.DEFINE_boolean('preload_stats', False, 'Reload the stats for the experiment')
 flags.DEFINE_string('layout_name', 'layout_pred', 'Experiment name for layout predictor')
 flags.DEFINE_integer('layout_train_epoch', 8, 'Experiment name for layout predictor')
 flags.DEFINE_boolean('use_gt_voxels', True, 'Use gt_voxels_for_prediction')
-flags.DEFINE_string('ovis_ids_filename', None, 'Ids to visualize output file')
-flags.DEFINE_string('ivis_ids_filename', None, 'Ids to visualize output file')
 flags.DEFINE_string('results_name', None, 'results_name')
 flags.DEFINE_boolean('gt_updates', False, 'Use gt_relative updates')
 flags.DEFINE_boolean('do_updates', True, 'Do opt updates')
@@ -126,11 +123,9 @@ class DWRTester(test_utils.Tester):
 
         self.model = oc_net.OCNet(
             (opts.img_height, opts.img_width), opts=self.opts,
-            roi_size=opts.roi_size,
-            use_context=opts.use_context, nz_feat=opts.nz_feat,
-            pred_voxels=False, nz_shape=opts.nz_shape, pred_labels=True, pred_graph=opts.pred_graph,
-            classify_rot=opts.classify_rot, nz_rot=opts.nz_rot, n_g_layers=opts.n_g_layers,)
-        #
+            roi_size=opts.roi_size, use_context=opts.use_context,
+            nz_feat=opts.nz_feat, pred_voxels=False, nz_shape=opts.nz_shape,
+            pred_labels=True, classify_rot=opts.classify_rot, nz_rot=opts.nz_rot,)
 
         if opts.pred_voxels and opts.dwr_model:
             self.model.code_predictor.shape_predictor.add_voxel_decoder(
@@ -214,16 +209,6 @@ class DWRTester(test_utils.Tester):
         if opts.classify_rot:
             self.quat_medoids = torch.from_numpy(
                 scipy.io.loadmat(osp.join(opts.cache_dir, 'quat_medoids.mat'))['medoids']).type(torch.FloatTensor)
-            if opts.nz_rot == 48:
-                self.quat_medoids = torch.from_numpy(
-                    scipy.io.loadmat(osp.join(opts.cache_dir, 'quat_medoids_48.mat'))['medoids']).type(torch.FloatTensor)
-
-            nz_rel_rot = opts.nz_rel_rot
-            self.quat_medoids_relative = torch.from_numpy(
-                scipy.io.loadmat(osp.join(opts.cache_dir, 'quat_medoids_relative_{}_new.mat'.format(nz_rel_rot)))['medoids']).type(torch.FloatTensor)
-            assert len(self.quat_medoids_relative) == opts.nz_rel_rot, ' Relative rotation architecture does not match'
-            # self.quat_medoids_relative = torch.from_numpy(
-            #     scipy.io.loadmat(osp.join(opts.cache_dir, 'quat_medoids_relative.mat'))['medoids']).type(torch.FloatTensor)
             self.quat_medoids_var = None
 
             # define the nearest bin metric?
@@ -667,18 +652,17 @@ class DWRTester(test_utils.Tester):
             elif isinstance(elem, collections.Sequence):
                 return [recursive_convert_to_numpy(samples) for samples in elem]
             elif isinstance(elem, torch.FloatTensor):
-                return elem.numpy()
+                return elem.data.numpy()
             elif isinstance(elem, torch.cuda.FloatTensor):
-                return elem.cpu().numpy()
+                    return elem.data.cpu().numpy()
             elif isinstance(elem, torch.LongTensor):
-                return elem.numpy()
+                return elem.data.numpy()
             elif isinstance(elem, torch.cuda.LongTensor):
-                return elem.cpu().numpy()
-            elif isinstance(elem, torch.autograd.Variable):
-                return recursive_convert_to_numpy(elem.data)
+                return elem.data.cpu().numpy()
             else:
                 return elem
 
+        # pdb.set_trace()
         new_dict = recursive_convert_to_numpy(dict_of_outputs)
         with open(pkl_file_name, 'wb') as f:
             pickle.dump(new_dict, f)
@@ -702,21 +686,12 @@ class DWRTester(test_utils.Tester):
         with open(pkl_file_name, 'rb') as f:
             predictions = pickle.load(f)
         predictions = recursive_convert_to_torch(predictions)
-        predictions['gt_codes'] = [Variable(k) for k in predictions['gt_codes']]
-        predictions['pred_codes'] = [Variable(k) for k in predictions['pred_codes']]
-        predictions['object_class_gt'] = Variable(predictions['object_class_gt']).long()
-        predictions['rois'] = Variable(predictions['rois'])
-        predictions['amodal_bboxes'] = predictions['amodal_bboxes']
-        predictions['codes_gt_quats'] = [Variable(t) for t in predictions['codes_gt_quats']]
+        predictions['object_class_gt'] = predictions['object_class_gt'].long()
 
         
         try:
-            predictions['relative_trans'] = Variable(predictions['relative_trans'])
-            predictions['relative_scale'] = Variable(predictions['relative_scale'])
-            predictions['relative_dir'] = Variable(predictions['relative_dir'])
-            predictions['relative_gt'] = [Variable(k) for k in predictions['relative_gt']]
             predictions['trans_dependent_rotation'] = [k for  k in predictions['trans_dependent_rotation']]
-            predictions['trans_dependent_rotation_binned'] = [Variable(k).long() for k in predictions['trans_dependent_rotation_binned']]
+            predictions['trans_dependent_rotation_binned'] = [k.long() for k in predictions['trans_dependent_rotation_binned']]
             predictions['relative_quat_tensors_angles_gt'] = predictions['relative_quat_tensors_angles_gt']
         
         except KeyError as e:
@@ -726,7 +701,7 @@ class DWRTester(test_utils.Tester):
             predictions['trans_dependent_rotation_binned'] = predictions['relative_quat_tensors_angles_gt'] = None
 
         try:
-            predictions['codes_quat_var'] = Variable(predictions['codes_quat_var'])
+            predictions['codes_quat_var'] = predictions['codes_quat_var']
         except KeyError as e:
             assert self.opts.var_gmm_rot == False, 'var gmm rots given'
             predictions['codes_quat_var'] = None
@@ -813,7 +788,7 @@ class DWRTester(test_utils.Tester):
             self.codes_quat_var = predictions['codes_quat_var']
 
         n = codes_pred_all['shape'].size(0)
-        labels_pred = Variable(torch.zeros(n, 1).cuda())
+        labels_pred = torch.zeros(n, 1).cuda()
         scores_pred = labels_pred.cpu().data.numpy() * 0 + 1
         bboxes_pred = self.rois.data.cpu().numpy()[:, 1:]
         min_score_eval=np.minimum(0.05, np.max(scores_pred))
@@ -838,10 +813,11 @@ class DWRTester(test_utils.Tester):
                         self.codes_pred_eval['trans'].data.cpu(), self.relative_gt['relative_trans'].data.cpu())
                 self.new_trans=new_trans
                 if opts.do_updates:
-                    self.codes_pred_eval['trans']=Variable(new_trans)
+                    self.codes_pred_eval['trans']=new_trans
         else:
             self.update_norm=torch.mean(self.codes_pred_eval['trans'] * 0, dim=1).data.cpu().numpy().tolist()
 
+        # updates for scale
         if opts.pred_relative:
             for i in range(1):
                 if not opts.gt_updates:
@@ -854,25 +830,24 @@ class DWRTester(test_utils.Tester):
                 new_scale=new_scale.exp()
                 self.new_scale=new_scale
                 if opts.do_updates:
-                    self.codes_pred_eval['scale']=Variable(new_scale)
+                    self.codes_pred_eval['scale']=new_scale
 
         quats_gt_binned = [suncg_parse.quats_to_bininds(q.data.cpu(), self.quat_medoids) for q in self.codes_gt['quat']]
-        quats_gt_binned = [Variable(q) for q in quats_gt_binned]
-        quats_gt_binned_probs = Variable(self.convert_multiple_bins_to_probabilites(quats_gt_binned, opts.nz_rot, no_noise=1.0)).log()
+        # quats_gt_binned = [Variable(q) for q in quats_gt_binned]
+        quats_gt_binned_probs = self.convert_multiple_bins_to_probabilites(quats_gt_binned, opts.nz_rot, no_noise=1.0).log()
         
-        self.codes_pred_quat_before = Variable(self.codes_pred_eval['quat'].data.clone())
+        self.codes_pred_quat_before = self.codes_pred_eval['quat'].data.clone()
         self.entropy_before_optim = (-1 * self.codes_pred_eval['quat']  * self.codes_pred_eval['quat'].exp()).sum(1).data.cpu().numpy()
 
         if opts.pred_relative and opts.classify_dir and opts.do_updates:
             if opts.gt_updates:
                 relative_direction_prediction = self.convert_multiple_bins_to_probabilites(self.relative_direction_rotation_binned, opts.nz_rel_dir).log().numpy()
-                self.relative_direction_prediction = Variable(torch.from_numpy(relative_direction_prediction).cuda())
+                self.relative_direction_prediction = torch.from_numpy(relative_direction_prediction).cuda()
             else:
                 relative_direction_prediction = self.relative_direction_prediction.data.cpu().numpy()
             self.relative_direction_prediction_3d = relative_direction_prediction
 
             absolute_locations = self.codes_pred_eval['trans'].data.cpu().numpy()
-            # absolute_locations = self.codes_gt[3].data.cpu().numpy()
             absolute_log_probabilites = self.codes_pred_eval['quat'].data.cpu().numpy()
             n_objects = len(absolute_log_probabilites)
             n_absoulte_bins = absolute_log_probabilites.shape[1]
@@ -889,7 +864,7 @@ class DWRTester(test_utils.Tester):
             # pdb.set_trace()
 
             for nx in range(n_objects):
-                src_c = self.index2object_class[self.object_classes.data[nx, 0]]
+                src_c = self.index2object_class[self.object_classes.data[nx, 0].item()]
                 ignore_bin_scores = False
                 # if src_c == 'table':
                 #     ignore_bin_scores = True
@@ -1065,24 +1040,19 @@ class DWRTester(test_utils.Tester):
             else:
                 relative_direction_prediction = self.relative_direction_prediction.data.cpu()
 
-            # pdb.set_trace()
-            # pdb.set_trace()
             for i,  (pred_dir, gt_dirs) in enumerate(zip(relative_direction_prediction, self.relative_direction_rotation)):
-            # for i,  (pred_dir, gt_dirs) in enumerate(zip(self.relative_direction_rotation, self.relative_direction_rotation)):
                 if i in indices:
                     continue
 
                 src_i = i //n_objects
-                src_c = self.index2object_class[self.object_classes.data[src_i, 0]]
-                # if src_c != 'desk':
-                #     continue
-
+                src_c = self.index2object_class[self.object_classes.data[src_i, 0].item()]
                 min_err  = 180
                 for gt_dir in gt_dirs:
                     min_err = min(min_err, metrics.direction_dist(pred_dir.numpy(), gt_dir.numpy()))
                 err_rel_dir.append(min_err)
             state = -1
             err_angle_iter = iter(err_rel_dir)
+
             if opts.classify_dir:
                 for i, (pred, gt_bins, pred_dir, gt_dirs) in enumerate(zip(relative_direction_predictions_classes, self.relative_direction_rotation_binned,
                  relative_direction_prediction, self.relative_direction_rotation)):
@@ -1096,8 +1066,8 @@ class DWRTester(test_utils.Tester):
                         state = 0
                     src_i = i//n_objects
                     trj_i = i % n_objects
-                    src_c = self.index2object_class[self.object_classes.data[src_i, 0]]
-                    trj_c = self.index2object_class[self.object_classes.data[trj_i, 0]]
+                    src_c = self.index2object_class[self.object_classes.data[src_i, 0].item()]
+                    trj_c = self.index2object_class[self.object_classes.data[trj_i, 0].item()]
                     t = ("{}_{}".format(self.house_names[0], self.view_ids[0]), src_i, trj_i, pred, gt_bins.data.cpu().numpy(),
                          np.linalg.norm(gt_trans_[src_i]- gt_trans_[trj_i]), state, 
                          next(err_angle_iter),
@@ -1120,7 +1090,7 @@ class DWRTester(test_utils.Tester):
         err_shapes=err_scales * 0.
         err_rots=err_scales * 0.
         err_rots_before = err_scales * 0
-        # pdb.set_trace()
+
         for i in range(ndt):
           for j in range(ngt):
             err_shapes[i, j]=metrics.volume_iou(shapes[i, 0].data, gt_shapes[
@@ -1162,7 +1132,7 @@ class DWRTester(test_utils.Tester):
 
         house_name_view_id = "{}_{}".format(self.house_names[0], self.view_ids[0])
         absolute_rot_conditions = []
-        # pdb.set_trace()
+
         if self.opts.var_gmm_rot:
             self.codes_quat_var = np.sqrt(np.exp(self.codes_quat_var))*180/np.pi
         else:
@@ -1170,7 +1140,7 @@ class DWRTester(test_utils.Tester):
         for ox in range(len(err_rots)):
             bf_class = suncg_parse.quats_to_bininds(rots_before[ox].data.unsqueeze(0), self.quat_medoids)[0]
             af_class = suncg_parse.quats_to_bininds(rots[ox].data.unsqueeze(0), self.quat_medoids)[0]
-            t = (house_name_view_id, ox,  self.index2object_class[self.object_classes.data[ox, 0]], err_rots_before[ox], err_rots[ox],
+            t = (house_name_view_id, ox,  self.index2object_class[self.object_classes.data[ox, 0].item()], err_rots_before[ox], err_rots[ox],
                  self.entropy_before_optim[ox], self.entropy_after_optim[ox], bf_class, af_class,
                  metrics.quat_dist(rots_before[ox].data, rots[ox].data), self.codes_quat_var[ox][bf_class])
             # pdb.set_trace()
@@ -1192,9 +1162,7 @@ class DWRTester(test_utils.Tester):
          # 'pwr': err_rel_quat, 'acc_rel_quat' : acc_rel_quat, 
          'acc_rel_dir' : acc_rel_dir, 'rel_dir': err_rel_dir
          }
-        # print(stats)
-        # pdb.set_trace()
-
+       
         if opts.pred_class:
             correct=torch.sum(self.class_pred == self.object_classes.squeeze(1).data.cpu())
             total=len(self.class_pred)
@@ -1232,6 +1200,9 @@ class DWRTester(test_utils.Tester):
 
     def test_draw(self):
         base_dir=osp.join(self.opts.results_quality_dir)
+        if not osp.exists(base_dir):
+            os.makedirs(base_dir)
+
         opts=self.opts
         house_name_view_ids=[]
         index_filename=opts.index_file
@@ -1242,7 +1213,8 @@ class DWRTester(test_utils.Tester):
                     house_name_view_ids.append('_'.join(line.split('_')))
 
         rng = np.random.RandomState(0)
-        indices = rng.choice(len(self.dataloader), 200)
+        indices = rng.choice(len(self.dataloader), 5)
+        dump_to_file = False
         if len(house_name_view_ids) == 0:
             dump_to_file = True
             dump_file_fd = open(osp.join(base_dir,'random_house_views.txt'),'w') 
@@ -1266,6 +1238,7 @@ class DWRTester(test_utils.Tester):
                 print("Generating {}".format(i))
                 if dump_to_file:
                     dump_file_fd.write("{}_{}\n".format(house_name, view_id))
+            
             # if i > 10 and len(house_name_view_ids) == 0:
             #     break
         if dump_to_file:
@@ -1303,8 +1276,9 @@ class DWRTester(test_utils.Tester):
                     bench_image_stats['house_name']=batch['house_name'][0]
                     bench_image_stats['view_id']=batch['view_id'][0]
                     # pdb.set_trace()
-                    # with open(json_file, 'w') as f:
-                    #     json.dump({'bench': bench_image_stats}, f)
+                    if True:
+                        with open(json_file, 'w') as f:
+                            json.dump({'bench': bench_image_stats}, f)
 
                     bench_stats.append(bench_image_stats)
 
@@ -1467,14 +1441,6 @@ def main(_):
     else:
         tester.test_draw()
 
-    # pred_clases = torch.cat(tester.stored_quat_relative_pred_classes).numpy()
-    # gt_clases = torch.cat(tester.stored_quat_relative_gt_classes).numpy()
-
-    # with open(osp.join(FLAGS.results_eval_dir, 'pred_relative_classes.npy'),'w') as f:
-    #     np.save(f, pred_clases)
-    # with open(osp.join(FLAGS.results_eval_dir, 'gt_relative_classes.npy'),'w') as f:
-    #     np.save(f, gt_clases)
-    # # pdb.set_trace()
 
 
 if __name__ == '__main__':

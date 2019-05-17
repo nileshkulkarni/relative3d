@@ -102,19 +102,6 @@ def quat_nll_loss_and(quat_pred, quat_gt, class_weights=None):
     else:
         loss = -1*(Variable(gts)* quat_pred*class_weights).sum()
 
-    # for i in range(len(quat_gt)):
-    #     loss.append((-1.0/n)*quat_pred[quat_gt[i]].log())
-    # loss = torch.stack(loss).sum()
-    # # for i in range(len(quat_gt)):
-    # #     mask = torch.zeros(len(quat_pred)) + 1
-    # #     mask = mask.scatter_(0, quat_gt_tensor, 0)
-    # #     mask.scatter_(0, quat_gt[i].data.cpu(), 1)
-    # #     mask = Variable(mask.cuda())
-    # #     quat_probs = normalize_probs(quat_pred*mask)
-    # #     gt_probs = Variable(torch.zeros(len(quat_pred)).scatter_(0, quat_gt[i].data.cpu(), 1)).cuda()
-    # #     loss.append(-1*quat_probs[quat_gt[i]].log())
-    # # loss = -1*torch.nn.functional.max_pool1d(-1*torch.stack(loss).view(1,1, -1),  kernel_size=len(quat_gt))
-    # pdb.set_trace()
     return loss
 
 
@@ -204,10 +191,9 @@ def dir_dist(q1, q2):
 def code_loss(
     code_pred, code_gt, rois,
     relative_pred, relative_gt, bIndices_pairs,
-    class_pred, class_gt, common_class_predictions, common_class_gt,
+    class_pred, class_gt,
     quat_medoids = None, direction_medoids=None,
-    pred_class=False, common_pred_class=False,
-    pred_voxels=True, classify_rot=True, classify_dir=True, classify_trj=True, pred_relative=False, 
+    pred_class=False, pred_voxels=True, classify_rot=True, classify_dir=True, classify_trj=True, pred_relative=False, 
     shape_wt=1.0, scale_wt=1.0, quat_wt=1.0, trans_wt=1.0, rel_trans_wt=1.0, rel_quat_wt=1.0, class_wt=1.0,
     lsopt=None, rel_opt=False, class_weights=None, opts=None):
     ''' 
@@ -227,7 +213,7 @@ def code_loss(
         train_var = False
         gmm_dir = False
     else:
-        gmm_rot = opts.gmm_rot
+        gmm_rot = False
         var_gmm_rot = opts.var_gmm_rot
         train_var = opts.train_var
         gmm_dir = opts.gmm_dir
@@ -267,16 +253,9 @@ def code_loss(
             per_mixture_prob =  one_by_sqrt_2pi_log - 0.5*log_variance  - qd/(1E-8 + 2*log_variance.exp())
             log_prob = torch.log((mixture_weight*per_mixture_prob.exp()).sum(-1) + 1E-6)
             log_prob = log_prob.mean()
-            # if log_prob.data[0] ==float("-inf"):    
-            #     pdb.set_trace()
-            # # # if log_prob == inf
-            # if  (log_prob != log_prob).data[0]:
-            #     #   # Detecting NaN
-            #     pdb.set_trace()
             nll.append(-1*log_prob)
-            # break
-
         q_loss = torch.cat(nll).mean()
+
     elif gmm_rot:
         assert quat_medoids is not None, 'Quat medoids not passed, cannot compute'
         sigmasq = (2*3.14/180)**2
@@ -300,14 +279,6 @@ def code_loss(
     class_loss = 0*q_loss
     if pred_class:
         class_loss = torch.nn.functional.nll_loss(class_pred, class_gt)
-
-    common_class_loss = 0*q_loss
-    if common_pred_class:
-        # pdb.set_trace()
-        mask = relative_gt[3]
-        common_class_loss_src = nll_loss_with_mask(common_class_predictions[0], common_class_gt[0], mask)
-        common_class_loss_trj = nll_loss_with_mask(common_class_predictions[1], common_class_gt[1], mask)
-        common_class_loss = common_class_loss_src + common_class_loss_trj
 
 
     sc_loss = (code_pred['scale'].log() - code_gt['scale'].log()).abs().mean()
@@ -425,7 +396,7 @@ def code_loss(
         total_loss += rel_q_loss
 
     total_loss += class_loss * class_wt
-    total_loss += common_class_loss
+    
     loss_factors = {
         'shape': s_loss * shape_wt, 'scale': sc_loss * scale_wt,
         'quat': q_loss * quat_wt,
@@ -434,7 +405,6 @@ def code_loss(
         'rel_scale' : rel_scale_loss * rel_trans_wt,
         'rel_quat' : rel_q_loss * rel_quat_wt,
         'class' : class_loss * class_wt,
-        'common_class' : common_class_loss,
         'var_mean' : s_loss * 0,
         'var_std' : s_loss * 0,
         'var_mean_rel_dir' : s_loss *0,

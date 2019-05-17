@@ -17,6 +17,9 @@ from . import bbox_utils
 import pdb
 from collections import defaultdict
 
+curr_path = osp.dirname(osp.abspath(__file__))
+symmetry_file = osp.join('../cachedir/symmetry_nyu.pkl')
+
 valid_object_classes = [
     'bed', 'sofa', 'table', 'chair', 'desk', 'television',
     # 'cabinet', 'counter', 'refridgerator', 'night_stand', 'toilet', 'bookshelf', 'shelves', 'bathtub'

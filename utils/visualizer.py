@@ -14,7 +14,7 @@ class Visualizer():
         self.use_html = opt.is_train and opt.use_html
         self.win_size = opt.display_winsize
         self.name = opt.name
-        self.env_name = opt.env_name
+        self.env_name = opt.name
         if self.display_id > 0:
             print('Visdom Env Name {}'.format(self.env_name))
             self.vis = visdom.Visdom(server=server, port = opt.display_port, env=self.env_name)
