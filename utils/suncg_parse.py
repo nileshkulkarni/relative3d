@@ -18,35 +18,15 @@ import pdb
 from collections import defaultdict
 
 curr_path = osp.dirname(osp.abspath(__file__))
-symmetry_file = osp.join('../cachedir/symmetry_suncg.pkl')
+symmetry_file = osp.join(curr_path, '../cachedir/symmetry_suncg.pkl')
 valid_object_classes = [
     'bed', 'sofa', 'table', 'chair', 'desk', 'television',
-    # 'cabinet', 'counter', 'refridgerator', 'night_stand', 'toilet', 'bookshelf', 'shelves', 'bathtub'
 ]
-
-# valid_object_classes = [
-#     'chair', 'desk',
-#     # 'cabinet', 'counter', 'refridgerator', 'night_stand', 'toilet', 'bookshelf', 'shelves', 'bathtub'
-# ]
-
-# valid_object_classes = [
-#     'bed', 'sofa', 'chair', 'desk', 'television',
-#     # 'cabinet', 'counter', 'refridgerator', 'night_stand', 'toilet', 'bookshelf', 'shelves', 'bathtub'
-# ]
-
-# valid_object_classes = [
-#     'sofa', 'television',
-#     # 'cabinet', 'counter', 'refridgerator', 'night_stand', 'toilet', 'bookshelf', 'shelves', 'bathtub'
-# ]
 
 object_class2index = {'bed' : 1, 'sofa' :2, 'table' :3, 
     'chair':4 , 'desk':5, 'television':6,
 }
 
-# valid_object_classes = [
-#     'bed', 'sofa', 'table', 'chair', 'desk', 'television',
-#     # 'cabinet', 'counter', 'refridgerator', 'night_stand', 'toilet', 'bookshelf', 'shelves', 'bathtub'
-# ]
 list.sort(valid_object_classes)
 
 
