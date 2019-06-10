@@ -138,7 +138,6 @@ dependencies:
     - dominate==2.3.5
     - idna==2.8
     - pycocotools==2.0
-    - pymesh2==0.2.1
     - requests==2.21.0
     - tensorflow==1.4.1
     - torch==0.4.0
@@ -146,6 +145,6 @@ dependencies:
     - urllib3==1.24.1
     - visdom==0.1.8.8
     - websocket-client==0.54.0
-    - yattag==1.11.1
+    - yattag=1.11.1
 prefix: /home/nileshk/anaconda2/envs/3drelNet
 
