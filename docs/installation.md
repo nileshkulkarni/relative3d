@@ -6,7 +6,7 @@ Two overall comments:
 
 #### Setup virtualenv.
 ```
-conda env create -f docs/condenv.txt
+conda env create -f docs/condenv.yml
 source activate 3drelNet
 pip install -U pip
 pip install -r docs/requirements.txt
