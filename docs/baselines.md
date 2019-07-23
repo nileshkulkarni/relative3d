@@ -56,7 +56,7 @@ python -m relative3d.benchmark.nyu.box3d --num_train_epoch=16 --name=box3d_base_
 Evaluate with detections from a pretrained model, to compute mAP scores.
 
 ```
-python -m relative3d.benchmark.nyu.dwr_save_predictions --num_train_epoch=16 --name=dwr_base_factored3d_baseline_ft_nyu  --classify_rot --pred_voxels=True --use_context   --eval_set=val --nyu_dir=/nvme-scratch/nileshk/nyu/ --use_spatial_map=True
+python -m relative3d.benchmark.nyu.dwr --num_train_epoch=16 --name=dwr_base_factored3d_baseline_ft_nyu  --classify_rot --pred_voxels=True --use_context   --eval_set=val --nyu_dir=/nvme-scratch/nileshk/nyu/ --use_spatial_map=True
 ```
 ## GCN Net Baseline
 ### Training GCN on SunCG

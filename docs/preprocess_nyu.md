@@ -7,8 +7,12 @@ Download the proposals and object data for nyu from here
 wget https://www.dropbox.com/s/a0bqx3nxu1iaory/nyuv2.tar.gz && tar -xf nyuv2.tar.gz nyuv2
 ```
 
-Preprocess the NYU mat files.
+Preprocess the NYU data.
+```
+Create the mat files using the script
 
+```
+python voxelize_objects.py
 
 ```
 cd nyuv2
