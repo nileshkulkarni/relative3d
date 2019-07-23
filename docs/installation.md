@@ -54,4 +54,9 @@ git clone https://github.com/pdollar/edges ./edges
 # SSC-Net code (used for computing voxelization for the baseline)
 git clone https://github.com/shurans/sscnet ./sscnet
 cd ..
+
+
+# Download Binvox
+cd binvox/
+Download exceutable from [here](https://www.patrickmin.com/binvox/). Put it inside external/binvox
 ```
