@@ -19,7 +19,7 @@ If you use this code for your research, please consider citing:
 @article{kulkarni2019relnet,
   title={3D-RelNet: Joint Object and Relational Network for 3D Prediction},
   author={Nilesh Kulkarni, Ishan Misra, Shubham Tulsiani, Abhinav Gupta},
-  journal={arXiv preprint arXiv:1906.02729},
+  journal={International Conference on Computer Vision (ICCV)},
   year={2019}
 }
 ```
