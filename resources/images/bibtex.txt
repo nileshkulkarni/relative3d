@@ -1,6 +1,7 @@
-@article{kulkarni20183d,
+@article{kulkarni20193d,
   title={3D-RelNet: Joint Object and Relational Network for 3D Prediction},
   author={Kulkarni, Nilesh and Misra, Ishan and Tulsiani, Shubham and Gupta, Abhinav},
-  year={2018}
+  journal={International Conference on Computer Vision (ICCV)}
+  year={2019}
 }
 
