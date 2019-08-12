@@ -16,13 +16,15 @@ To train or evaluate on the NYUv2 dataset the (trained/downloaded) models, it is
 ### Citation
 If you use this code for your research, please consider citing:
 ```
+
 @article{kulkarni20193d,
   title={3D-RelNet: Joint Object and Relational Network for 3D Prediction},
-  author={Nilesh Kulkarni
-  and Ishan Misra
-  and Shubham Tulsiani
-  and Abhinav Gupta},
-  journal={International Conference on Computer Vision (ICCV)},
+  author={Kulkarni, Nilesh
+  and Misra, Ishan 
+  and Tulsiani, Shubham
+  and Gupta, Abhinav},
+  journal={International Conference on Computer Vision (ICCV)}
   year={2019}
 }
+
 ```
