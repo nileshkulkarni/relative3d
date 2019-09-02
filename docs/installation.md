@@ -35,7 +35,7 @@ cd ..
 wget https://download.pytorch.org/models/resnet18-5c106cde.pth -O ~/.torch/models/resnet18-5c106cde.pth
 
 # Download our models.
-wget https://www.dropbox.com/s/r7xw5fw6awj5h4v/cachedir.tar.gz && tar -xf cachedir.tar.gz
+wget https://cmu.box.com/s/6bq16zba09rjfezfpflfhepgse0ja9cf && tar -xf cachedir.tar.gz
 wget https://people.eecs.berkeley.edu/~shubhtuls/cachedir/factored3d/blender.tar.gz && tar -xf blender.tar.gz && mv blender renderer/. 
 ```
 
