@@ -4,9 +4,9 @@ Two overall comments:
 * Result visualizations depend on blender. We provide a version, but if you have issues where the renderings don't show up or where the script cannot read the result images, you may have to compile blender and provide a bpy.so file that matches your precise system configuration. See [here](https://wiki.blender.org/index.php/User:Ideasman42/BlenderAsPyModule) and [here](https://blender.stackexchange.com/questions/102933/a-working-guidance-for-building-blender-as-bpy-python-module) for information about how to do this. The results by themselves do not depend on blender, and if you just want to compute predictions, you do not need blender.
 * You should run each of these commands in the main root directory. 
 
-#### Setup virtualenv.
+#### Setup conda env.
 ```
-conda env create -f docs/condenv.yml
+conda env create -f docs/condaenv.yml
 source activate 3drelNet
 pip install -U pip
 pip install -r docs/requirements.txt
