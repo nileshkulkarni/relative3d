@@ -483,9 +483,9 @@ class Box3dTrainer(train_utils.Trainer):
         self.total_loss, self.loss_factors = loss_utils.code_loss(
             self.codes_pred, self.codes_gt, self.rois,
             self.relative_predictions, self.relative_gt, self.bIndices_pairs,
-            class_pred, self.class_gt.squeeze(), common_class_predictions, self.common_classes,
+            class_pred, self.class_gt.squeeze(),
             quat_medoids = self.quat_medoids_var, direction_medoids = self.direction_medoids_var,
-            pred_class=opts.pred_class, common_pred_class=opts.common_pred_class,
+            pred_class=opts.pred_class,
             pred_voxels=opts.pred_voxels,
             classify_rot=opts.classify_rot,
             classify_dir = opts.classify_dir,
