@@ -1,12 +1,15 @@
 
 Please get the nyuv2 images from [here](https://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html)
 
-Download the proposals and object data for nyu from here
+Download the [proposals](https://cmu.box.com/s/vs9mxylim1v09xeld8gk1p249pdqqlqk) and object data for nyu from here
 
 ```
-wget https://www.dropbox.com/s/a0bqx3nxu1iaory/nyuv2.tar.gz && tar -xf nyuv2.tar.gz nyuv2
+tar -xf nyuv2.tar.gz nyuv2
 cd nyuv2
-wget https://www.dropbox.com/s/mhvu39z1rhqmfox/nyu_splits.tar.gz && tar -xf nyu_splits.tar.gz splits
+```
+Download the [splits](https://cmu.box.com/s/mz64rgzheifglkxjytv8llvoupqfk0t3). Please make sure the splits are in the nyuv2 dir
+```
+tar -xf nyu_splits.tar.gz splits
 ```
 
 Move NYU images to nyuv2 dir.
