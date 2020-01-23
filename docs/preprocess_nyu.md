@@ -1,7 +1,7 @@
 
 Please get the nyuv2 images from [here](https://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html)
 
-Download the [proposals](https://cmu.box.com/s/vs9mxylim1v09xeld8gk1p249pdqqlqk) and object data for nyu from here
+Download the [proposals](https://cmu.box.com/s/vs9mxylim1v09xeld8gk1p249pdqqlqk) and [object data](https://cmu.box.com/s/4gb25203vltk3maykd9p7mell0gpfjh9) for nyu
 
 ```
 tar -xf nyuv2.tar.gz nyuv2
